@@ -1,0 +1,105 @@
+BootStrap: docker
+From: ubuntu:lunar
+
+%labels
+	Maintainer Klemen Berkovic
+	Contact roxor1992@gmail.com
+	Recipe https://github.com/kb2623/cpp-singularity
+	Tags cpp
+	Version v0.0.1
+
+%post
+	# Install base
+	apt update && apt install -y bash zsh git
+
+	# Install Python with optimizations
+	export PYTHON_VERSION_MAJOR=3
+	export PYTHON_VERSION_MINOR_FIRST=6
+	export PYTHON_VERSION_MINOR_SECOND=15
+	export PYTHON_VERSION=${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR_FIRST}.${PYTHON_VERSION_MINOR_SECOND}
+	cd /opt
+	apt update && apt install -y curl gcc g++ make libc-dev dpkg-dev ca-certificates zlib1g-dev liblzma-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libsqlite3-dev libreadline-dev libffi-dev libbz2-dev
+	## Downlaod and extract
+	curl https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz -o Python-${PYTHON_VERSION}.tgz
+	tar xzf Python-${PYTHON_VERSION}.tgz && cd Python-${PYTHON_VERSION}
+	## Configure
+	./configure --prefix=/usr/local --enable-optimizations --enable-ipv6
+	## Build and install
+	make -j$(nproc) && make install
+	## Set default python
+	update-alternatives --install /usr/bin/python python /usr/local/bin/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR_FIRST} 0
+	update-alternatives --config python
+	update-alternatives --install /usr/bin/python${PYTHON_VERSION_MAJOR} python${PYTHON_VERSION_MAJOR} /usr/local/bin/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR_FIRST} 0
+	update-alternatives --config python${PYTHON_VERSION_MAJOR}
+	## Clean Python build
+	cd /
+	rm -f /opt/Python-${PYTHON_VERSION}.tgz && rm -rf /opt/Python-${PYTHON_VERSION}
+	
+	# llvm-clang
+	export CLANG_VERSION=17
+	apt update && apt install -y cmake
+	## Downlaod
+	git clone --depth=1 -b "release/${CLANG_VERSION}.x" https://github.com/llvm/llvm-project.git /opt/llvm-project
+	mkdir /opt/llvm && cd /opt/llvm
+	## Configure
+	cmake -G "Unix Makefiles" -DCMAKE_PREFIX_PATH="/usr/local" -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;lldb" /opt/llvm-project/llvm
+	## Build and install
+	make -j$(nproc) && make install
+	## Set default cpp
+	update-alternatives --install /usr/bin/cc cc /usr/local/bin/clang 0
+	update-alternatives --config cc
+	update-alternatives --install /usr/bin/c++ c++ /usr/local/bin/clang++ 0
+	update-alternatives --config c++
+	## Clean
+	cd /
+	apt purge -y gcc g++
+	rm -rf /opt/llvm-project && rm -rf /opt/llvm
+
+	# valgrind
+	## Download
+	git clone https://sourceware.org/git/valgrind.git /opt/valgrind && cd /opt/valgrind
+	## Configure
+	./autogen.sh && ./configure --prefix=/usr/local
+	## Build and install
+	make -j$(nproc) && make install
+	## Clean
+	cd /
+	rm -rf /opt/valgrind
+
+	# Install OpenMPI
+	export OPENMPI_VERSION="4.1.6"
+	export OPENMPI_MAJOR_VERSION="v4.1"
+	## Downlaod and extract
+	curl https://download.open-mpi.org/release/open-mpi/${OPENMPI_MAJOR_VERSION}/openmpi-${OPENMPI_VERSION}.tar.gz -o /opt/openmpi-${OPENMPI_VERSION}.tar.gz
+	cd /opt && tar xzf openmpi-${OPENMPI_VERSION}.tar.gz && cd /opt/openmpi-${OPENMPI_VERSION}
+	## Configure
+	./configure --prefix=/usr/local 
+	## Build and install
+	make -j$(nproc) && make install
+	## clean
+	cd /
+	rm -f openmpi-${OPENMPI_VERSION}.tar.gz && rm -rf openmpi-${OPENMPI_VERSION}
+
+	# Install editor neovim
+	apt update && apt install -y software-properties-common
+	add-apt-repository ppa:neovim-ppa/unstable
+	apt update && apt install -y neovim universal-ctags
+	## Clean
+	apt purge -y curl software-properties-common
+
+%environment
+	export LC_ALL=en_US.UTF-8
+	export SHELL=/bin/bash
+	export PYTHON_VERSION_MAJOR=3
+	export PYTHON_VERSION_MINOR_FIRST=6
+	export PYTHON_VERSION_MINOR_SECOND=15
+	export PYTHON_VERSION=${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR_FIRST}.${PYTHON_VERSION_MINOR_SECOND}
+	export CLANG_VERSION=17
+	export OPENMPI_VERSION="4.1.6"
+
+%runscript
+    exec /bin/bash "$@"
+
+%help
+	This is a container that runs C++.
+
